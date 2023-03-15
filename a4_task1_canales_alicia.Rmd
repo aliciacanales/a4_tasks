@@ -17,8 +17,8 @@ library(here)
 library(sf)
 library(tmap)
 library(terra)
+library(dplyr)
 library(gstat)
-library(stars)
 library(ggplot2)
 ```
 
@@ -32,14 +32,17 @@ oil_spill <- read_csv(here('data', 'Oil_Spill_Incident_Tracking_[ds394].csv'))
 # reading in ca_counties shape file
 ca_counties_sf <- read_sf(here('data', 'ca_counties', 'CA_Counties_TIGER2016.shp')) %>% 
   janitor::clean_names() %>%
-  dplyr::select(county_name = name, land_area = aland)
+  select(county_name = name, land_area = aland)
 
 # st_crs(ca_counties_sf) projection WGS 84; EPSG 3857
 
 # setting the CRS to match each other
 oil_sf <- st_as_sf(oil_spill, coords = c("LATITUDE","LONGITUDE"), 
            crs = st_crs(ca_counties_sf)) %>% 
-  janitor::clean_names()
+  janitor::clean_names() %>% 
+  select(county_name = localecoun, localecity,inlandmari, geometry)
+
+# st_crs(oil_sf)
 
 ```
 
@@ -49,24 +52,26 @@ oil_sf <- st_as_sf(oil_spill, coords = c("LATITUDE","LONGITUDE"),
 tmap_mode(mode = "view")
 
 tm_shape(oil_sf) +
-  tm_dots('localecity', palette = 'Blues')
+  tm_dots('objectid', palette = 'Blues')
 ```
 
 Make a finalized static choropleth map in ggplot in which the fill color for each county depends on the count of inland oil spill events by county for the 2008 oil spill data
 
+*Making the Choropleth map*
 ```{r}
+# combining datasets together to get counts by county
+
+ca_join_sf <- st_join(ca_counties_sf, oil_sf)
 
 # creating new subset that will show total amount of oil events in each county 
-ca_combine_sf <- ca_counties_sf %>% 
-  st_join(oil_sf)
+county_oil_sf <- ca_join_sf %>% 
+  group_by(county_name.x) %>% 
+  summarize(total_inland = sum(inlandmari == 'Inland'))
 
-county_oil_sf <- combine_sf %>% 
-  group_by(LOCALECOUN) %>% 
-  summarize('Total Count' = sum(!is.na(LOCALECOUN)))
 
 # choroplerth, can't figure this out ???
-ggplot(data = combine_sf) +
-  geom_sf(aes(fill = land_area), color = "white", size = 0.1) +
+ggplot(data = county_oil_sf) +
+  geom_sf(aes(fill = total_inland), size = 0.1) +
   scale_fill_gradientn(colors = c("lightgray","orange","red")) +
   theme_minimal() +
   labs(fill = "Number of S. punicea records")
