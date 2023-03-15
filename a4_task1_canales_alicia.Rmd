@@ -16,6 +16,7 @@ library(tidyverse)
 library(here)
 library(sf)
 library(tmap)
+library(terra)
 library(gstat)
 library(stars)
 library(ggplot2)
@@ -29,56 +30,47 @@ library(ggplot2)
 oil_spill <- read_csv(here('data', 'Oil_Spill_Incident_Tracking_[ds394].csv'))
 
 # reading in ca_counties shape file
-ca_counties_sf <- read_sf(here('data', 'ca_counties', 'CA_Counties_TIGER2016.shp'))
+ca_counties_sf <- read_sf(here('data', 'ca_counties', 'CA_Counties_TIGER2016.shp')) %>% 
+  janitor::clean_names() %>%
+  dplyr::select(county_name = name, land_area = aland)
 
-st_crs(ca_counties_sf) # projection WGS 84; EPSG 3857
+# st_crs(ca_counties_sf) projection WGS 84; EPSG 3857
+
+# setting the CRS to match each other
+oil_sf <- st_as_sf(oil_spill, coords = c("LATITUDE","LONGITUDE"), 
+           crs = st_crs(ca_counties_sf)) %>% 
+  janitor::clean_names()
+
 ```
 
-*Making interactive map*
+*Making tmap*
 ```{r}
-# converting oil spill to shape file 
-oil_sf <- oil_spill %>%
-  st_as_sf(coords = c("LONGITUDE","LATITUDE"), crs=4326)
+# tmap is good i think
+tmap_mode(mode = "view")
 
-# transforming crs to ca_counties
-oil_sf <- st_transform(oil_sf, st_crs(ca_counties_sf))
-
-# just to look at the data
-ggplot() +
-  geom_sf(data = ca_counties_sf) +
-  geom_sf(data = oil_sf, aes(color = 'LOCALECITY'))
-
-
+tm_shape(oil_sf) +
+  tm_dots('localecity', palette = 'Blues')
 ```
 
 Make a finalized static choropleth map in ggplot in which the fill color for each county depends on the count of inland oil spill events by county for the 2008 oil spill data
 
 ```{r}
+
 # creating new subset that will show total amount of oil events in each county 
-county_oil_sf <- oil_sf %>% 
+ca_combine_sf <- ca_counties_sf %>% 
+  st_join(oil_sf)
+
+county_oil_sf <- combine_sf %>% 
   group_by(LOCALECOUN) %>% 
   summarize('Total Count' = sum(!is.na(LOCALECOUN)))
- 
 
-# tmap is good i think
-tmap_mode("view")
-
-tm_shape(county_oil_sf) +
-  tm_dots('Total Count', palette = 'Blues')
-
-
-# choloperth, can't figure this out ???
-ggplot(data = county_oil_sf) +
-  geom_sf(aes(fill = n), color = 'white', size = 0.1) +
-  scale_color_viridis_d() +
-  theme_minimal() +
-  labs(fill = "title")
-
-ggplot(data = county_oil_sf) +
-   geom_sf(data = ca_counties_sf) +theme_minimal() +
-  geom_sf(aes(fill = n), color = "white", size = 0.1) +
+# choroplerth, can't figure this out ???
+ggplot(data = combine_sf) +
+  geom_sf(aes(fill = land_area), color = "white", size = 0.1) +
   scale_fill_gradientn(colors = c("lightgray","orange","red")) +
- labs(fill = "Number of S. punicea records")
+  theme_minimal() +
+  labs(fill = "Number of S. punicea records")
+
 ```
 
 
