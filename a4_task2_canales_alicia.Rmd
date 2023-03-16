@@ -1,0 +1,75 @@
+---
+title: 'Assignment 4: Task 2'
+author: "Alicia Canales"
+date: "2023-03-16"
+output: 
+  html_document:
+    code_folding: 'hide'
+---
+
+```{r setup, echo = TRUE, include=TRUE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, include=TRUE, message=FALSE, warning=FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(tidyr)
+library(here)
+library(lubridate)
+library(tsibble)
+library(feasts)
+library(slider)
+```
+
+*Wrangling Data Area*
+```{r}
+fish_data <- read_csv(here('data', 'willamette_fish_passage.csv')) %>% 
+ janitor::clean_names()
+
+# making this a timeseries dataset with selected columns and replacing na's with 0
+fish_ts <- fish_data %>% 
+  mutate(date = lubridate::mdy(date)) %>% 
+  as_tsibble(key = NULL, index = date) %>% 
+  select(c('project', 'date', 'coho', 'jack_coho', 'steelhead','temp_c')) %>% 
+  replace(is.na(.), 0)
+
+#trying to look at overall trends
+ggplot(data = fish_ts, aes(x = date, y = steelhead)) +
+  geom_line() +
+  labs(x = "Date",
+       y = "s")
+
+# showing coho pop increasing in 2011. jcoho has high pop in 2009.steel head has pretty consistient pop numbers.  
+
+# maybe there is a optimal temperature these fish like in order to have high population numbers
+fish_month <- fish_ts %>% 
+  index_by(yr_mo = ~yearmonth(.)) %>% 
+  summarize(yearly_mean_temp = mean(temp_c))
+
+ggplot(data = fish_month, aes(x = yr_mo, y = yearly_mean_temp, fill = jack_coho)) +
+  geom_line() 
+```
+
+
+```{r}
+## Quarterly Results {.tabset}
+
+### Original Time Series
+
+
+
+
+### Seasonplots
+
+
+### Annual counts by species
+
+
+```
+
+
+
+
+
+
+
