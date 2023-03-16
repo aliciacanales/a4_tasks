@@ -30,20 +30,21 @@ library(ggplot2)
 oil_spill <- read_csv(here('data', 'Oil_Spill_Incident_Tracking_[ds394].csv'))
 
 # reading in ca_counties shape file
-ca_counties_sf <- read_sf(here('data', 'ca_counties', 'CA_Counties_TIGER2016.shp')) %>% 
+ca_counties_sf <- read_sf(here('data', 'ca_counties', 'CA_Counties_TIGER2016.shp')) %>%
   janitor::clean_names() %>%
   select(county_name = name, land_area = aland)
 
 # st_crs(ca_counties_sf) projection WGS 84; EPSG 3857
 
 # setting the CRS to match each other
-oil_sf <- st_as_sf(oil_spill, coords = c("LATITUDE","LONGITUDE"), 
+oil_sf <- st_as_sf(oil_spill, coords = c("X","Y"), 
            crs = st_crs(ca_counties_sf)) %>% 
   janitor::clean_names() %>% 
-  select(county_name = localecoun, localecity,inlandmari, geometry)
+  select(county_name = localecoun, localecity,inlandmari, objectid, geometry)
+
 
 # st_crs(oil_sf)
-
+ # tm_fill('land_area', palette = 'BuGn') +
 ```
 
 *Making tmap*
@@ -51,8 +52,10 @@ oil_sf <- st_as_sf(oil_spill, coords = c("LATITUDE","LONGITUDE"),
 # tmap is good i think
 tmap_mode(mode = "view")
 
-tm_shape(oil_sf) +
-  tm_dots('objectid', palette = 'Blues')
+tm_shape(oil_sf) + 
+  tm_dots('objectid', palette = "Dark2",
+    popup.vars = TRUE,
+    title = 'Oil Events')
 ```
 
 Make a finalized static choropleth map in ggplot in which the fill color for each county depends on the count of inland oil spill events by county for the 2008 oil spill data
@@ -69,12 +72,14 @@ county_oil_sf <- ca_join_sf %>%
   summarize(total_inland = sum(inlandmari == 'Inland'))
 
 
-# choroplerth, can't figure this out ???
+# choroplerth map 
 ggplot(data = county_oil_sf) +
-  geom_sf(aes(fill = total_inland), size = 0.1) +
-  scale_fill_gradientn(colors = c("lightgray","orange","red")) +
+  geom_sf(aes(fill = total_inland), size = 5) +
+  scale_fill_gradientn(colors = c("green4","yellow2","red"),
+                       breaks = c(50, 100, 150, 200, 250, 300),
+                       labels = paste(c(50, 100, 150, 200, 250, 300))) +
   theme_minimal() +
-  labs(fill = "Number of S. punicea records")
+  labs(fill = "Number of Oil Events") 
 
 ```
 

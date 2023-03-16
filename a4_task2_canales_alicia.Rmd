@@ -31,23 +31,33 @@ fish_ts <- fish_data %>%
   mutate(date = lubridate::mdy(date)) %>% 
   as_tsibble(key = NULL, index = date) %>% 
   select(c('project', 'date', 'coho', 'jack_coho', 'steelhead','temp_c')) %>% 
-  replace(is.na(.), 0)
+  replace(is.na(.), 0) %>% 
+  pivot_longer(col = c('coho', 'jack_coho', 'steelhead'),
+               names_to = 'species',
+               values_to = 'count')
 
 #trying to look at overall trends
-ggplot(data = fish_ts, aes(x = date, y = steelhead)) +
+ggplot(data = fish_ts, aes(x = date, y = count)) +
   geom_line() +
   labs(x = "Date",
-       y = "s")
+       y = "s") # showing coho pop increasing in 2011. jcoho has high pop in 2009. steel head has pretty consistient pop numbers.
 
-# showing coho pop increasing in 2011. jcoho has high pop in 2009.steel head has pretty consistient pop numbers.  
+# making a subset for each species
+coho_ts<- fish_month %>% 
+  filter(species == 'coho')
+jack_ts<- fish_month %>% 
+  filter(species == 'jack_coho')
+steelhead_ts<- fish_month %>% 
+  filter(species == 'steelhead')
 
 # maybe there is a optimal temperature these fish like in order to have high population numbers
 fish_month <- fish_ts %>% 
   index_by(yr_mo = ~yearmonth(.)) %>% 
-  summarize(yearly_mean_temp = mean(temp_c))
+  summarize(mean_monthly_temp = mean(temp_c))
 
-ggplot(data = fish_month, aes(x = yr_mo, y = yearly_mean_temp, fill = jack_coho)) +
-  geom_line() 
+ggplot(data = fish_month, aes(x = yr_mo, y = mean_monthly_temp)) +
+  geom_line(data = coho_ts, aes(y = species)) 
+
 ```
 
 
