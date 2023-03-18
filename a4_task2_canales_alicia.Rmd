@@ -4,11 +4,11 @@ author: "Alicia Canales"
 date: "2023-03-16"
 output: 
   html_document:
-    code_folding: 'hide'
+    code_folding: hide
 ---
 
-```{r setup, echo = TRUE, include=TRUE, message=FALSE, warning=FALSE}
-knitr::opts_chunk$set(echo = TRUE, include=TRUE, message=FALSE, warning=FALSE)
+```{r setup,include=TRUE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE,message=FALSE, warning=FALSE)
 ```
 
 ```{r}
@@ -19,6 +19,9 @@ library(lubridate)
 library(tsibble)
 library(feasts)
 library(slider)
+library(fable)
+library(broom)
+library(patchwork)
 ```
 
 *Wrangling Data Area*
@@ -31,24 +34,25 @@ fish_ts <- fish_data %>%
   mutate(date = lubridate::mdy(date)) %>% 
   as_tsibble(key = NULL, index = date) %>% 
   select(c('project', 'date', 'coho', 'jack_coho', 'steelhead','temp_c')) %>% 
-  replace(is.na(.), 0) %>% 
-  pivot_longer(col = c('coho', 'jack_coho', 'steelhead'),
-               names_to = 'species',
-               values_to = 'count')
+  replace(is.na(.), 0) 
+# %>%
+#   pivot_longer(col = c('coho', 'jack_coho', 'steelhead'),
+#                names_to = 'species',
+#                values_to = 'count')
 
 #trying to look at overall trends
-ggplot(data = fish_ts, aes(x = date, y = count)) +
-  geom_line() +
+ggplot(data = fish_ts, aes(x = date, y = count, fill =species)) +
+  geom_line(fill = species) +
   labs(x = "Date",
        y = "s") # showing coho pop increasing in 2011. jcoho has high pop in 2009. steel head has pretty consistient pop numbers.
 
-# making a subset for each species
-coho_ts<- fish_month %>% 
-  filter(species == 'coho')
-jack_ts<- fish_month %>% 
-  filter(species == 'jack_coho')
-steelhead_ts<- fish_month %>% 
-  filter(species == 'steelhead')
+# # making a subset for each species
+# coho_ts<- fish_ts %>% 
+#   filter(species == 'coho')
+# jack_ts<- fish_ts %>% 
+#   filter(species == 'jack_coho')
+# steelhead_ts<- fish_ts %>% 
+#   filter(species == 'steelhead')
 
 # maybe there is a optimal temperature these fish like in order to have high population numbers
 fish_month <- fish_ts %>% 
@@ -56,29 +60,96 @@ fish_month <- fish_ts %>%
   summarize(mean_monthly_temp = mean(temp_c))
 
 ggplot(data = fish_month, aes(x = yr_mo, y = mean_monthly_temp)) +
-  geom_line(data = coho_ts, aes(y = species)) 
+  geom_line(data = coho_ts, aes(x = count, y = species)) 
 
 ```
 
+### Quarterly Results {.tabset}
 
+#### Original time Series
 ```{r}
-## Quarterly Results {.tabset}
-
-### Original Time Series
 
 
 
+```
 
-### Seasonplots
+
+#### Seasonsplots
+```{r}
+coho <- fish_ts %>% 
+  select(date, coho, temp_c) %>% 
+  index_by(yr_mo = ~yearmonth(.)) %>% 
+  summarize(monthly_mean_temp = mean(temp_c),
+            coho_temp = mean(coho))
+j_coho <- fish_ts %>% 
+  select(date, jack_coho, temp_c) %>% 
+  index_by(yr_mo = ~yearmonth(.)) %>% 
+  summarize(monthly_mean_temp = mean(temp_c),
+            jack_temp = mean(jack_coho))
+
+steelhead <- fish_ts %>% 
+  select(date, steelhead, temp_c) %>% 
+  index_by(yr_mo = ~yearmonth(.)) %>% 
+  summarize(monthly_mean_temp = mean(temp_c),
+            steel_temp = mean(steelhead))
+
+gg_season(coho, year.labels = TRUE)
+
+gg_season(coho)+
+  theme_minimal()+
+  scale_colour_viridis_c()
 
 
-### Annual counts by species
+gg_season(j_coho)+
+  theme_minimal()+
+  scale_colour_viridis_c()
+
+steelhead %>% 
+  gg_season()+
+  theme_minimal()+
+  scale_colour_viridis_c()
+
+p1 + p2 + p3 + 
+  plot_layout(ncol = 1)
+
+fish_season %>%
+  gg_season(fill =date)+
+  theme_minimal()+
+  scale_colour_viridis_c()
 
 
 ```
 
 
 
+
+#### Annual Counts by species
+```{r}
+
+coho_ts<- fish_ts %>% 
+  filter(species == 'coho')
+  
+jack_ts<- fish_ts %>% 
+  filter(species == 'jack_coho')
+steelhead_ts<- fish_ts %>% 
+  filter(species == 'steelhead')
+
+
+tab3_annual <- fish_ts %>% 
+  index_by(yearly = ~year(.)) %>% 
+  summarize(temp_c_mean = mean(temp_c), 
+            coho_mean = mean(coho), 
+            jack_mean = mean(jack_coho), 
+            steelhead_mean = mean(steelhead))
+
+ggplot(tab3_annual, aes(x = yearly)) +
+  geom_line(aes(y = coho_mean), color = "purple", size = 0.7) +
+   geom_line(aes(y = jack_mean), color = "blue", size = 0.7) + 
+   geom_line(aes(y = steelhead_mean), color = "magenta", size = 0.7) +
+  scale_x_continuous(breaks = c(2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010)) +
+  labs(x = "Year", y = "Mean Count of Fish")+
+  theme_minimal()
+```
 
 
 

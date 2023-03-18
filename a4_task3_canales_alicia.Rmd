@@ -1,0 +1,105 @@
+---
+title: "Task 3"
+author: "Alicia Canales"
+date: "2023-03-18"
+output: 
+  html_document:
+    code_folding: 'hide'
+---
+
+```{r setup, include=TRUE, message=FALSE, warning=FALSE, echo=TRUE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(tidytext)
+library(textdata)
+library(pdftools)
+library(ggwordcloud)
+```
+
+Overview section:
+
+
+![Figure 2. Speak Now Album Cover. Written by Taylor Swift](https://m.media-amazon.com/images/W/IMAGERENDERING_521856-T1/images/I/71+q4wh2+YL._UF1000,1000_QL80_.jpg) # maybe find a smaller image
+
+### Getting lyrics from Taylor Swift's Midnights Album 
+```{r}
+tswift_text <- pdf_text(here::here('data', 'song_lyrics.pdf'))
+
+tswift_lines <- data.frame(tswift_text) %>% 
+  mutate(page = 1:n()) %>%
+  mutate(text_full = str_split(tswift_text, pattern = '\\n')) %>% 
+  unnest(text_full) %>% 
+  mutate(text_full = str_trim(text_full)) 
+
+```
+
+### Making it more tidy
+```{r}
+speak_now<- tswift_lines %>% 
+  slice((1855:3023)) %>% 
+  mutate(song_title = ifelse(str_detect(text_full, ">>>"), text_full, NA)) %>% 
+  fill(song_title, .direction = 'down') %>% 
+  separate(col = song_title, into = c("Track", "Title"), sep = ">>>")
+
+speak_now_words <- speak_now %>% 
+  unnest_tokens(word, text_full) %>% 
+  select(-tswift_text)
+
+sn_wordcount <- speak_now_words %>% 
+  count(Title, word)
+```
+
+### Removing stop words
+```{r}
+sn_words_clean <- speak_now_words %>% 
+  anti_join(stop_words, by = 'word')
+
+nonstop_counts <- sn_words_clean %>% 
+  count(Title, word)
+
+```
+
+### Finding the most used words in speak now
+```{r}
+top_5_words <- nonstop_counts %>% 
+  group_by(Title) %>% 
+  arrange(-n) %>% 
+  slice(1:5) %>%
+  ungroup()
+```
+
+### Wordcloud
+```{r}
+top5_cloud <- ggplot(data = top_5_words, aes(label = word)) +
+  geom_text_wordcloud(aes(color = n, size = n), shape = "diamond") +
+  scale_size_area(max_size = 7) +
+  scale_color_gradientn(colors = c("#cc6b96","#813c60","#462241")) +
+  theme_minimal()
+
+top5_cloud
+```
+
+### Sentiment Analysis using nrc lexicon
+```{r}
+speak_now_nrc <- sn_words_clean %>% 
+  inner_join(get_sentiments("nrc"))
+
+speak_now_nrc_counts <- speak_now_nrc %>% 
+  count(Title, sentiment)
+
+ggplot(data = speak_now_nrc_counts, aes(x = n, y = sentiment)) +
+  geom_col(aes(fill = sentiment), show.legend = FALSE) +
+  facet_wrap(~Title) +
+  labs(x= 'N', y= 'Sentiment', title = 'Sentiment Breakdown of Speak Now by Taylor Swift')
+```
+
+
+
+
+
+
+
+
