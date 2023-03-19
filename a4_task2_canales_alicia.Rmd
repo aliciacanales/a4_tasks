@@ -26,41 +26,33 @@ library(patchwork)
 
 *Wrangling Data Area*
 ```{r}
-fish_data <- read_csv(here('data', 'willamette_fish_passage.csv')) %>% 
+fish <- read_csv(here('data', 'willamette_fish_passage.csv')) %>% 
  janitor::clean_names()
 
 # making this a timeseries dataset with selected columns and replacing na's with 0
-fish_ts <- fish_data %>% 
+fish_data <- fish %>% 
   mutate(date = lubridate::mdy(date)) %>% 
-  as_tsibble(key = NULL, index = date) %>% 
-  select(c('project', 'date', 'coho', 'jack_coho', 'steelhead','temp_c')) %>% 
-  replace(is.na(.), 0) 
-# %>%
-#   pivot_longer(col = c('coho', 'jack_coho', 'steelhead'),
-#                names_to = 'species',
-#                values_to = 'count')
+  select(c('date', 'coho', 'jack_coho', 'steelhead','temp_c')) %>% 
+  replace(is.na(.), 0)
 
-#trying to look at overall trends
-ggplot(data = fish_ts, aes(x = date, y = count, fill =species)) +
-  geom_line(fill = species) +
-  labs(x = "Date",
-       y = "s") # showing coho pop increasing in 2011. jcoho has high pop in 2009. steel head has pretty consistient pop numbers.
+fish_ts <- fish_data %>% 
+  as_tsibble(key = NULL, index = date)
 
-# # making a subset for each species
-# coho_ts<- fish_ts %>% 
-#   filter(species == 'coho')
-# jack_ts<- fish_ts %>% 
-#   filter(species == 'jack_coho')
-# steelhead_ts<- fish_ts %>% 
-#   filter(species == 'steelhead')
+fish_longer_ts <- fish_ts %>% 
+  pivot_longer("coho":"steelhead",
+               names_to = "species",
+               values_to = "count")
 
-# maybe there is a optimal temperature these fish like in order to have high population numbers
 fish_month <- fish_ts %>% 
   index_by(yr_mo = ~yearmonth(.)) %>% 
   summarize(mean_monthly_temp = mean(temp_c))
 
-ggplot(data = fish_month, aes(x = yr_mo, y = mean_monthly_temp)) +
-  geom_line(data = coho_ts, aes(x = count, y = species)) 
+## for tab 3 
+fish_t3 <- fish_data %>% 
+  pivot_longer("coho":"steelhead",
+               names_to = "species",
+               values_to = "count") %>% 
+  select(-temp_c)
 
 ```
 
@@ -68,7 +60,42 @@ ggplot(data = fish_month, aes(x = yr_mo, y = mean_monthly_temp)) +
 
 #### Original time Series
 ```{r}
+## making a subset for each species then going to use patchwork to put them all together
 
+# coho
+coho_ts<- fish_longer_ts %>%
+  filter(species == 'coho')
+
+p_1 <- ggplot(data=coho_ts, aes(x=date, y=count)) +
+  geom_line() +
+  theme_minimal() +
+  labs(title = 'Coho', x = 'Date', y = 'Total Count')
+
+# jack_coho
+jack_ts<- fish_longer_ts %>%
+  filter(species == 'jack_coho')
+
+p_2 <- ggplot(data=jack_ts, aes(x=date, y=count)) +
+  geom_line() +
+  theme_minimal() +
+  labs(title = 'Jack Coho', x = 'Date', y = 'Total Count')
+
+# steelhead
+steelhead_ts<- fish_longer_ts %>%
+  filter(species == 'steelhead')
+
+p_3 <- ggplot(data=steelhead_ts, aes(x=date, y=count)) +
+  geom_line() +
+  theme_minimal() +
+  labs(title = 'Steelhead', x = 'Date', y = 'Total count')
+
+# patchwork plot
+
+p_1 + p_2 + p_3 +
+  plot_layout(ncol = 1, tag_level = 'new', guides = 'collect') +
+  plot_annotation(title = 'Coho, Jack Coho, and Steelhead Salmon Counts',
+    caption = 'Figure 1. Time series of Coho, Jack Coho, and Steelhead counts on the Willamette fish ladder between 2001 and 2010.',
+    theme = theme(plot.title = element_text(size = 16)))
 
 
 ```
@@ -79,44 +106,36 @@ ggplot(data = fish_month, aes(x = yr_mo, y = mean_monthly_temp)) +
 coho <- fish_ts %>% 
   select(date, coho, temp_c) %>% 
   index_by(yr_mo = ~yearmonth(.)) %>% 
-  summarize(monthly_mean_temp = mean(temp_c),
-            coho_temp = mean(coho))
+  summarize(coho_avg = mean(coho))
+
 j_coho <- fish_ts %>% 
   select(date, jack_coho, temp_c) %>% 
   index_by(yr_mo = ~yearmonth(.)) %>% 
-  summarize(monthly_mean_temp = mean(temp_c),
-            jack_temp = mean(jack_coho))
+  summarize(jcoho_avg = mean(jack_coho))
 
 steelhead <- fish_ts %>% 
   select(date, steelhead, temp_c) %>% 
   index_by(yr_mo = ~yearmonth(.)) %>% 
-  summarize(monthly_mean_temp = mean(temp_c),
-            steel_temp = mean(steelhead))
+  summarize(steel_avg = mean(steelhead))
 
-gg_season(coho, year.labels = TRUE)
 
-gg_season(coho)+
+p1 <- gg_season(coho, y = coho_avg)+
+  theme_minimal() +
+  labs(x = 'Month', y = 'Average Count', title = 'Coho')
+
+p2 <- gg_season(j_coho, y = jcoho_avg)+
   theme_minimal()+
-  scale_colour_viridis_c()
+  labs(x = 'Month', y = 'Average Count', title = 'Jack Coho')
 
-
-gg_season(j_coho)+
+p3 <- gg_season(steelhead, y = steel_avg)+
   theme_minimal()+
-  scale_colour_viridis_c()
-
-steelhead %>% 
-  gg_season()+
-  theme_minimal()+
-  scale_colour_viridis_c()
+  labs(x = 'Month', y = 'Average Count', title = 'Steelhead')
 
 p1 + p2 + p3 + 
-  plot_layout(ncol = 1)
-
-fish_season %>%
-  gg_season(fill =date)+
-  theme_minimal()+
-  scale_colour_viridis_c()
-
+  plot_layout(ncol = 1, tag_level = 'new', guides = 'collect') +
+  plot_annotation(title = 'Coho, Jack Coho, and Steelhead Salmon Annual population numbers',
+    caption = 'Figure 1. Displays Coho, Jack Coho, and Steelhead Salmon annual population numbers from 2001 to 2010.',
+    theme = theme(plot.title = element_text(size = 16)))
 
 ```
 
@@ -125,30 +144,26 @@ fish_season %>%
 
 #### Annual Counts by species
 ```{r}
+tab3_annual <- fish_t3 %>% 
+  mutate(year = as.Date(as.character(date),format = "%Y")) %>%
+  group_by(year, species) %>% 
+  summarize(annual_total = sum(count))
 
-coho_ts<- fish_ts %>% 
-  filter(species == 'coho')
+ggplot(data = tab3_annual, aes(x = year, y = annual_total)) +
+  geom_line(aes(color=species)) +
+  theme_minimal() +
+  scale_x_date(date_labels = "%Y") +
+  scale_color_manual(values = c('#355c7d', '#c06c84', '#f8b195'), 
+                     labels=c('Coho Salmon',
+                               'Jack Coho Salmon',
+                               'Steelhead Salmon'))+
+  labs(title = 'Annual Counts for Salmon species from 2000 to 2010',
+    x = 'Year',
+    y = 'Total Annual Count', color = 'Species')
+
   
-jack_ts<- fish_ts %>% 
-  filter(species == 'jack_coho')
-steelhead_ts<- fish_ts %>% 
-  filter(species == 'steelhead')
 
 
-tab3_annual <- fish_ts %>% 
-  index_by(yearly = ~year(.)) %>% 
-  summarize(temp_c_mean = mean(temp_c), 
-            coho_mean = mean(coho), 
-            jack_mean = mean(jack_coho), 
-            steelhead_mean = mean(steelhead))
-
-ggplot(tab3_annual, aes(x = yearly)) +
-  geom_line(aes(y = coho_mean), color = "purple", size = 0.7) +
-   geom_line(aes(y = jack_mean), color = "blue", size = 0.7) + 
-   geom_line(aes(y = steelhead_mean), color = "magenta", size = 0.7) +
-  scale_x_continuous(breaks = c(2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010)) +
-  labs(x = "Year", y = "Mean Count of Fish")+
-  theme_minimal()
 ```
 
 
